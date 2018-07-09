@@ -33,8 +33,13 @@ class Source(object):
 class Section(object):
     ALLOWED_NAMES = ("packages", "dev-packages")
     #: Name of the pipfile section
+
+    GROUP = 'dependencies'
+    #: Name of the sections group
+
     name = attr.ib(default="packages")
     #: A list of requirements that are contained by the section
+
     requirements = attr.ib(default=list)
 
     def get_dict(self):
@@ -158,6 +163,9 @@ class Pipfile(object):
             raise RequirementError("%s is not a valid Pipfile" % pipfile_path)
         pipfile_dict = toml.load(pipfile_path.as_posix())
         sections = [cls.get_section(pipfile_dict, s) for s in Section.ALLOWED_NAMES]
+        if Section.GROUP in pipfile_dict:
+            group = pipfile_dict[Section.GROUP]
+            sections.extend(cls.get_section(group, s, is_group=True) for s in group)
         pipenv = pipfile_dict.get("pipenv", {})
         requires = pipfile_dict.get("requires", {})
         creation_dict = {
@@ -173,7 +181,7 @@ class Pipfile(object):
         return cls(**creation_dict)
 
     @staticmethod
-    def get_section(pf_dict, section):
+    def get_section(pf_dict, section, is_group=False):
         """Get section objects from a pipfile dictionary
 
         :param pf_dict: A toml loaded pipfile dictionary
@@ -182,7 +190,7 @@ class Pipfile(object):
         """
         sect = pf_dict.get(section)
         requirements = []
-        if section not in Section.ALLOWED_NAMES:
+        if not is_group and section not in Section.ALLOWED_NAMES:
             raise ValueError("Not a valid pipfile section name: %s" % section)
         for name, pf_entry in sect.items():
             requirements.append(Requirement.from_pipfile(name, pf_entry))
